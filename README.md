@@ -26,6 +26,11 @@
   - [ ] 红包
   - [ ] 转账
 
+- [x] 消息发送
+  - [x] 文本
+  - [x] 图片
+  - [x] 文件
+
 
 
 Web微信协议参考资料：
@@ -36,12 +41,14 @@ Web微信协议参考资料：
 
 [qwx: WeChat Qt frontend 微信Qt前端](https://github.com/xiangzhai/qwx)
 
+**master-dev 分支为开发版本，用于测试新特性，欢迎使用后提出建议!**
+
 
 ## 1 环境与依赖
 
-目前只能运行于Python 2环境 。
+此版本只能运行于Python 2环境 。
 
-**wxBot** 用到了Python **requests** , **pypng** , 以及 **pyqrcode** 库。
+**wxBot** 用到了Python **requests** , **pypng** , **Pillow** 以及 **pyqrcode** 库。
 
 使用之前需要所依赖的库:
 
@@ -49,6 +56,7 @@ Web微信协议参考资料：
 pip install requests
 pip install pyqrcode
 pip install pypng
+pip install Pillow
 ```
 
 ## 2 快速开发
@@ -57,9 +65,9 @@ pip install pypng
 
 ### 2.1 代码
 
-以下的代码对所有来自好友的文本消息回复 *hi* ， 并不断向好友 *tb* 发送 *schedule* 。
+以下的代码对所有来自好友的文本消息回复文本消息 *hi* 、图片消息 *1.png* 以及文件消息 *1.png* ， 并不断向好友 *tb* 发送文本 *schedule* 。
 
-`handle_msg_all` 函数用于处理收到的每条消息，而 `schedule` 函数可以做一些任务性的事情(例如不断向好友推送信息或者一些定时任务)。
+`handle_msg_all` 函数用于处理收到的每条消息，而 `schedule` 函数可以做一些任务性的工作(例如不断向好友推送信息或者一些定时任务)。
 
 ```python
 #!/usr/bin/env python
@@ -71,10 +79,12 @@ from wxbot import *
 class MyWXBot(WXBot):
     def handle_msg_all(self, msg):
         if msg['msg_type_id'] == 4 and msg['content']['type'] == 0:
-            self.send_msg_by_uid('hi', msg['user']['id'])
+            self.send_msg_by_uid(u'hi', msg['user']['id'])
+            self.send_img_msg_by_uid("img/1.png", msg['user']['id'])
+            self.send_file_msg_by_uid("img/1.png", msg['user']['id'])
 
     def schedule(self):
-        self.send_msg('tb', 'schedule')
+        self.send_msg(u'tb', u'schedule')
         time.sleep(1)
 
 def main():
@@ -97,7 +107,7 @@ python test.py
 
 ### 2.3 登录微信
 
-程序运行之后，会在当前目录下生成二维码图片文件 ***qr.png*** ，用微信扫描此二维码并按操作指示确认登录网页微信。
+程序运行之后，会在当前目录下生成二维码图片文件 ***qr.png*** 并自动打开，用微信扫描此二维码并按操作指示确认登录网页微信。
 
 如果运行在Linux下，还可以通过设置 **WXBot** 对象的 `conf['qr']` 为 `tty` 的方式直接在终端打印二维码(此方法只能在Linux终端下使用)，效果如下：
 
@@ -131,7 +141,7 @@ python test.py
 | 0 | 初始化消息，内部数据 | 无意义，可以忽略 |
 | 1 | 自己发送的消息 | 无意义，可以忽略 |
 | 2 | 文件消息 | 字典，包含 `type` 与 `data` 字段 |
-| 3 | 群消息 | 字典， 包含 `user` (字典，包含 `id` 与 `name`字段，都是字符串，表示发送此消息的群用户)与 `type` 、 `data` 字段，红包消息除外(只有 `type` 字段) |
+| 3 | 群消息 | 字典， 包含 `user` (字典，包含 `id` 与 `name`字段，都是字符串，表示发送此消息的群用户)与 `type` 、 `data` 字段，红包消息只有 `type` 字段， 文本消息还有detail、desc字段， 参考 **群文本消息** |
 | 4 | 联系人消息 | 字典，包含 `type` 与 `data` 字段 |
 | 5 | 公众号消息 | 字典，包含 `type` 与 `data` 字段 |
 | 6 | 特殊账号消息 | 字典，包含 `type` 与 `data` 字段 |
@@ -154,10 +164,24 @@ python test.py
 | 10 | 撤回消息 | 不可用 |
 | 11 | 空内容 | 空字符串 |
 | 12 | 红包 | 不可用 |
+| 13 | 小视频 | 字符串，视频数据的url，HTTP POST请求此url可以得到mp4文件格式的数据 |
 | 99 | 未知类型 | 不可用 |
 
+### 4.4 群文本消息
 
-### 4.4 WXBot对象属性
+由于群文本消息中可能含有@信息，因此群文本消息的 `content` 字典除了含有 `type` 与 `data` 字段外，还含有 `detail` 与 `desc` 字段。
+
+各字段内容为：
+
+| 字段 | 内容 |
+| --- | ---- |
+| `type` | 数据类型， 为0(文本) |
+| `data` | 字符串，消息内容，含有@信息 |
+| `desc` | 字符串，删除了所有@信息 |
+| `detail` | 数组，元素类型为含有 `type` 与 `value` 字段的字典， `type` 为字符串 ***str*** (表示元素为普通字符串，此时value为消息内容) 或 ***at*** (表示元素为@信息， 此时value为所@的用户名) |
+
+
+### 4.5 WXBot对象属性
 
 **WXBot** 对象在登录并初始化之后,含有以下的可用数据:
 
@@ -169,34 +193,44 @@ python test.py
 | `special_list` | 特殊账号列表 |
 | `session` | **WXBot** 与WEB微信服务器端交互所用的 **Requests** `Session` 对象 |
 
-### 4.5 WXBot对象方法
+### 4.6 WXBot对象方法
 
 **WXBot** 对象还含有一些可以利用的方法
 
 | 方法 | 描述 |
 | ---- | --- |
-| `get_icon(id)` | 获取用户icon并保存到本地文件 ***img_[id].jpg***  , `id` 为用户id(Web微信数据) |
+| `get_icon(uid, gid)` | 获取联系人或者群聊成员头像并保存到本地文件 ***img_[uid].jpg***  , `uid` 为用户id, `gid` 为群id |
 | `get_head_img(id)` | 获取用户头像并保存到本地文件 ***img_[id].jpg*** ，`id` 为用户id(Web微信数据) |
 | `get_msg_img(msgid)` | 获取图像消息并保存到本地文件 ***img_[msgid].jpg*** , `msgid` 为消息id(Web微信数据) |
 | `get_voice(msgid)` | 获取语音消息并保存到本地文件 ***voice_[msgid].mp3*** , `msgid` 为消息id(Web微信数据) |
-| `get_account_name(uid)` | 获取微信id对应的名称，返回一个可能包含 `remark_name` (备注名), `nickname` (昵称), `display_name` (群名称)的字典|
+| `get_video(msgid)` | 获取视频消息并保存到本地文件 ***video_[msgid].mp4*** , `msgid` 为消息id(Web微信数据) |
+| `get_contact_name(uid)` | 获取微信id对应的名称，返回一个可能包含 `remark_name` (备注名), `nickname` (昵称), `display_name` (群名称)的字典|
 | `send_msg_by_uid(word, dst)` | 向好友发送消息，`word` 为消息字符串，`dst` 为好友用户id(Web微信数据) |
-| `send_msg(name, word, isfile)` | 向好友发送消息，`name` 为好友的备注名或者好友微信号， `isfile`为 `False` 时 `word` 为消息，`isfile` 为 `True` 时 `word` 为文件路径(此时向好友发送文件里的每一行) |
+| `send_img_msg_by_uid(fpath, dst)` | 向好友发送图片消息，`fpath` 为本地图片文件路径，`dst` 为好友用户id(Web微信数据) |
+| `send_file_msg_by_uid(fpath, dst)` | 向好友发送文件消息，`fpath` 为本地文件路径，`dst` 为好友用户id(Web微信数据) |
+| `send_msg_by_uid(word, dst)` | 向好友发送消息，`word` 为消息字符串，`dst` 为好友用户id(Web微信数据) |
+| `send_msg(name, word, isfile)` | 向好友发送消息，`name` 为好友的备注名或者好友微信号， `isfile`为 `False` 时 `word` 为消息，`isfile` 为 `True` 时 `word` 为文件路径(此时向好友发送文件里的每一行)，此方法在有重名好友时会有问题，因此更推荐使用 `send_msg_by_uid(word, dst)` |
 | `is_contact(uid)` | 判断id为 `uid` 的账号是否是本帐号的好友，返回 `True` (是)或 `False` (不是) |
 | `is_public(uid)` | 判断id为 `uid` 的账号是否是本帐号所关注的公众号，返回 `True` (是)或 `False` (不是) |
 
 
-## 5 Example
+## 5 群聊机器人示例
 
 ***bot.py*** 用 **[图灵机器人](http://www.tuling123.com/)** API 以及 **wxBot** 实现了一个自动回复机器人.
 
 此机器人会回复来自联系人的消息，以及群里@此账号的消息。
+
+并且本帐号可以通过发送 *退下* 、 *走开* 、 *关闭* 、 *关掉* 、 *休息* 、 *滚开* 来关闭机器人的自动回复。
+
+也可以通过发送 *出来* 、 *启动* 、 *工作* 来再次开启机器人的自动回复。
 
 群聊时需要将对应的群保存到联系人列表。
 
 群聊实现效果：
 
 ![群聊](img/group_chat.png)
+
+![群聊后台](img/group_chat_backend.jpg)
 
 
 ***bot.py*** 的运行方法：
@@ -224,3 +258,22 @@ python test.py
     ```python
     python bot.py
     ```
+
+## 6 类似项目
+
+[feit/Weixinbot](https://github.com/feit/Weixinbot) Nodejs 封装网页版微信的接口，可编程控制微信消息
+
+[littlecodersh/ItChat](https://github.com/littlecodersh/ItChat) 微信个人号接口、微信机器人及命令行微信，Command line talks through Wechat
+
+[Urinx/WeixinBot](https://github.com/Urinx/WeixinBot) 网页版微信API，包含终端版微信及微信机器人
+
+[zixia/wechaty](https://github.com/zixia/wechaty) Wechaty is wechat for bot in Javascript(ES6). It's a Personal Account Robot Framework/Library.
+
+## 7 基于Wxbot延伸的一些项目
+[WxbotManage](https://coding.net/u/vivre/p/WxbotManage/git) 基于Wxbot的微信多开管理和Webapi系统
+
+## 8 交流讨论
+
+问题可以直接开 **issue**
+
+**QQ** 交流群： **429134510** (1群)  **603614392** (2群)

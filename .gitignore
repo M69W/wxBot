@@ -68,3 +68,5 @@ target/
 qr.png
 /*.jpg
 *.ini
+*.un~
+/temp
